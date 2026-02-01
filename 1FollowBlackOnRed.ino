@@ -1,8 +1,8 @@
 #include <Servo.h>
 
 // Pin Definitions - YOUR ACTUAL WIRING
-#define LEFT_IR_SENSOR 3
-#define RIGHT_IR_SENSOR 12
+#define LEFT_IR_SENSOR A5      // Digital read on analog pin
+#define RIGHT_IR_SENSOR A0     // Digital read on analog pin
 #define COLOR_SENSOR_S0 11
 #define COLOR_SENSOR_S1 9
 #define COLOR_SENSOR_S2 6
@@ -10,19 +10,17 @@
 #define COLOR_SENSOR_OUT 8
 #define ULTRASONIC_TRIG 10
 #define ULTRASONIC_ECHO 2
-// Note: You mentioned ultrasonic OUT is 13, but typically ultrasonic has TRIG and ECHO
-// If you need pin 13 for ultrasonic, let me know which signal it is
 
-// Motors - NOT YET CONNECTED (placeholder pins)
-#define LEFT_MOTOR_PWM 11
-#define LEFT_MOTOR_DIR1 12
-#define LEFT_MOTOR_DIR2 13
-#define RIGHT_MOTOR_PWM A0
-#define RIGHT_MOTOR_DIR1 A1
-#define RIGHT_MOTOR_DIR2 A2
-#define SERVO_PIN A3
+// Motor Driver Pins (L298N or similar)
+#define MOTOR_IN1 5    // Left motor direction
+#define MOTOR_IN2 3    // Left motor direction
+#define MOTOR_IN3 1    // Right motor direction
+#define MOTOR_IN4 0    // Right motor direction
 
-// Motor speeds
+// Servo
+#define SERVO_PIN 4
+
+// Motor speeds (0-255)
 #define BASE_SPEED 150
 #define TURN_SPEED 120
 #define SLOW_SPEED 100
@@ -62,9 +60,11 @@ struct Color {
 void setup() {
   Serial.begin(9600);
   
+  // Initialize IR sensors
   pinMode(LEFT_IR_SENSOR, INPUT);
   pinMode(RIGHT_IR_SENSOR, INPUT);
   
+  // Initialize color sensor
   pinMode(COLOR_SENSOR_S0, OUTPUT);
   pinMode(COLOR_SENSOR_S1, OUTPUT);
   pinMode(COLOR_SENSOR_S2, OUTPUT);
@@ -74,16 +74,17 @@ void setup() {
   digitalWrite(COLOR_SENSOR_S0, HIGH);
   digitalWrite(COLOR_SENSOR_S1, LOW);
   
+  // Initialize ultrasonic sensor
   pinMode(ULTRASONIC_TRIG, OUTPUT);
   pinMode(ULTRASONIC_ECHO, INPUT);
   
-  pinMode(LEFT_MOTOR_PWM, OUTPUT);
-  pinMode(LEFT_MOTOR_DIR1, OUTPUT);
-  pinMode(LEFT_MOTOR_DIR2, OUTPUT);
-  pinMode(RIGHT_MOTOR_PWM, OUTPUT);
-  pinMode(RIGHT_MOTOR_DIR1, OUTPUT);
-  pinMode(RIGHT_MOTOR_DIR2, OUTPUT);
+  // Initialize motor driver
+  pinMode(MOTOR_IN1, OUTPUT);
+  pinMode(MOTOR_IN2, OUTPUT);
+  pinMode(MOTOR_IN3, OUTPUT);
+  pinMode(MOTOR_IN4, OUTPUT);
   
+  // Initialize servo
   gripperServo.attach(SERVO_PIN);
   gripperServo.write(90);
   
@@ -175,62 +176,73 @@ void followLine(int leftIR, int rightIR) {
   bool rightOnWhite = (rightIR == IR_ON_WHITE);
   
   if (!leftOnWhite && !rightOnWhite) {
+    // Both on line - go straight
     moveForward(BASE_SPEED);
   } else if (leftOnWhite && !rightOnWhite) {
+    // Left on white - turn right until back on line
     while (leftOnWhite) {
       turnRightDegrees(5);
       leftIR = digitalRead(LEFT_IR_SENSOR);
       leftOnWhite = (leftIR == IR_ON_WHITE);
     }
   } else if (!leftOnWhite && rightOnWhite) {
+    // Right on white - turn left until back on line
     while (rightOnWhite) {
       turnLeftDegrees(5);
       rightIR = digitalRead(RIGHT_IR_SENSOR);
       rightOnWhite = (rightIR == IR_ON_WHITE);
     }
   } else {
+    // Both on white - lost line
     moveForward(SLOW_SPEED);
   }
 }
 
 void moveForward(int speed) {
-  digitalWrite(LEFT_MOTOR_DIR1, HIGH);
-  digitalWrite(LEFT_MOTOR_DIR2, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR1, HIGH);
-  digitalWrite(RIGHT_MOTOR_DIR2, LOW);
-  analogWrite(LEFT_MOTOR_PWM, speed);
-  analogWrite(RIGHT_MOTOR_PWM, speed);
+  // Left motor forward
+  analogWrite(MOTOR_IN1, speed);
+  analogWrite(MOTOR_IN2, 0);
+  // Right motor forward
+  analogWrite(MOTOR_IN3, speed);
+  analogWrite(MOTOR_IN4, 0);
+}
+
+void moveBackward(int speed) {
+  // Left motor backward
+  analogWrite(MOTOR_IN1, 0);
+  analogWrite(MOTOR_IN2, speed);
+  // Right motor backward
+  analogWrite(MOTOR_IN3, 0);
+  analogWrite(MOTOR_IN4, speed);
 }
 
 void turnLeft(int speed) {
-  digitalWrite(LEFT_MOTOR_DIR1, LOW);
-  digitalWrite(LEFT_MOTOR_DIR2, HIGH);
-  digitalWrite(RIGHT_MOTOR_DIR1, HIGH);
-  digitalWrite(RIGHT_MOTOR_DIR2, LOW);
-  analogWrite(LEFT_MOTOR_PWM, speed);
-  analogWrite(RIGHT_MOTOR_PWM, speed);
+  // Left motor backward
+  analogWrite(MOTOR_IN1, 0);
+  analogWrite(MOTOR_IN2, speed);
+  // Right motor forward
+  analogWrite(MOTOR_IN3, speed);
+  analogWrite(MOTOR_IN4, 0);
 }
 
 void turnRight(int speed) {
-  digitalWrite(LEFT_MOTOR_DIR1, HIGH);
-  digitalWrite(LEFT_MOTOR_DIR2, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR1, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR2, HIGH);
-  analogWrite(LEFT_MOTOR_PWM, speed);
-  analogWrite(RIGHT_MOTOR_PWM, speed);
+  // Left motor forward
+  analogWrite(MOTOR_IN1, speed);
+  analogWrite(MOTOR_IN2, 0);
+  // Right motor backward
+  analogWrite(MOTOR_IN3, 0);
+  analogWrite(MOTOR_IN4, speed);
 }
 
 void stopMotors() {
-  digitalWrite(LEFT_MOTOR_DIR1, LOW);
-  digitalWrite(LEFT_MOTOR_DIR2, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR1, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR2, LOW);
-  analogWrite(LEFT_MOTOR_PWM, 0);
-  analogWrite(RIGHT_MOTOR_PWM, 0);
+  analogWrite(MOTOR_IN1, 0);
+  analogWrite(MOTOR_IN2, 0);
+  analogWrite(MOTOR_IN3, 0);
+  analogWrite(MOTOR_IN4, 0);
 }
 
 void turnLeftDegrees(int degrees) {
-  int turnTime = degrees * 10;
+  int turnTime = degrees * 10; // Calibrate this!
   turnLeft(TURN_SPEED);
   delay(turnTime);
   stopMotors();
@@ -238,7 +250,7 @@ void turnLeftDegrees(int degrees) {
 }
 
 void turnRightDegrees(int degrees) {
-  int turnTime = degrees * 10;
+  int turnTime = degrees * 10; // Calibrate this!
   turnRight(TURN_SPEED);
   delay(turnTime);
   stopMotors();

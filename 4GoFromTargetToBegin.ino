@@ -1,8 +1,8 @@
 #include <Servo.h>
 
 // Pin Definitions - YOUR ACTUAL WIRING
-#define LEFT_IR_SENSOR 3
-#define RIGHT_IR_SENSOR 12
+#define LEFT_IR_SENSOR A5
+#define RIGHT_IR_SENSOR A0
 #define COLOR_SENSOR_S0 11
 #define COLOR_SENSOR_S1 9
 #define COLOR_SENSOR_S2 6
@@ -11,14 +11,14 @@
 #define ULTRASONIC_TRIG 10
 #define ULTRASONIC_ECHO 2
 
-// Motors - NOT YET CONNECTED
-#define LEFT_MOTOR_PWM 11
-#define LEFT_MOTOR_DIR1 12
-#define LEFT_MOTOR_DIR2 13
-#define RIGHT_MOTOR_PWM A0
-#define RIGHT_MOTOR_DIR1 A1
-#define RIGHT_MOTOR_DIR2 A2
-#define SERVO_PIN A3
+// Motor Driver
+#define MOTOR_IN1 5
+#define MOTOR_IN2 3
+#define MOTOR_IN3 1
+#define MOTOR_IN4 0
+
+// Servo
+#define SERVO_PIN 4
 
 // Motor speeds
 #define BASE_SPEED 150
@@ -93,12 +93,10 @@ void setup() {
   pinMode(ULTRASONIC_TRIG, OUTPUT);
   pinMode(ULTRASONIC_ECHO, INPUT);
   
-  pinMode(LEFT_MOTOR_PWM, OUTPUT);
-  pinMode(LEFT_MOTOR_DIR1, OUTPUT);
-  pinMode(LEFT_MOTOR_DIR2, OUTPUT);
-  pinMode(RIGHT_MOTOR_PWM, OUTPUT);
-  pinMode(RIGHT_MOTOR_DIR1, OUTPUT);
-  pinMode(RIGHT_MOTOR_DIR2, OUTPUT);
+  pinMode(MOTOR_IN1, OUTPUT);
+  pinMode(MOTOR_IN2, OUTPUT);
+  pinMode(MOTOR_IN3, OUTPUT);
+  pinMode(MOTOR_IN4, OUTPUT);
   
   gripperServo.attach(SERVO_PIN);
   gripperServo.write(90);
@@ -304,134 +302,4 @@ Color readColor() {
   delay(10);
   
   digitalWrite(COLOR_SENSOR_S2, HIGH);
-  digitalWrite(COLOR_SENSOR_S3, HIGH);
-  c.green = pulseIn(COLOR_SENSOR_OUT, LOW);
-  delay(10);
-  
-  digitalWrite(COLOR_SENSOR_S2, LOW);
-  digitalWrite(COLOR_SENSOR_S3, HIGH);
-  c.blue = pulseIn(COLOR_SENSOR_OUT, LOW);
-  
-  return c;
-}
-
-bool isRed(Color c) {
-  return (c.red > RED_R_MIN && c.red < RED_R_MAX && 
-          c.green < RED_G_MAX && c.blue < RED_G_MAX);
-}
-
-bool isBlue(Color c) {
-  return (c.blue > BLUE_B_MIN && c.blue < BLUE_B_MAX && 
-          c.red < BLUE_R_MAX);
-}
-
-bool isGreen(Color c) {
-  return (c.green > GREEN_G_MIN && c.green < GREEN_G_MAX && 
-          c.red < GREEN_R_MAX && c.blue < GREEN_R_MAX);
-}
-
-bool isBlack(Color c) {
-  int avg = (c.red + c.green + c.blue) / 3;
-  return (avg < BLACK_THRESHOLD);
-}
-
-void followLine(int leftIR, int rightIR) {
-  bool leftOnWhite = (leftIR == IR_ON_WHITE);
-  bool rightOnWhite = (rightIR == IR_ON_WHITE);
-  
-  if (!leftOnWhite && !rightOnWhite) {
-    moveForward(BASE_SPEED);
-  } else if (leftOnWhite && !rightOnWhite) {
-    while (leftOnWhite) {
-      turnRightDegrees(5);
-      leftIR = digitalRead(LEFT_IR_SENSOR);
-      leftOnWhite = (leftIR == IR_ON_WHITE);
-    }
-  } else if (!leftOnWhite && rightOnWhite) {
-    while (rightOnWhite) {
-      turnLeftDegrees(5);
-      rightIR = digitalRead(RIGHT_IR_SENSOR);
-      rightOnWhite = (rightIR == IR_ON_WHITE);
-    }
-  } else {
-    moveForward(SLOW_SPEED);
-  }
-}
-
-void moveForward(int speed) {
-  digitalWrite(LEFT_MOTOR_DIR1, HIGH);
-  digitalWrite(LEFT_MOTOR_DIR2, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR1, HIGH);
-  digitalWrite(RIGHT_MOTOR_DIR2, LOW);
-  analogWrite(LEFT_MOTOR_PWM, speed);
-  analogWrite(RIGHT_MOTOR_PWM, speed);
-}
-
-void moveBackward(int speed) {
-  digitalWrite(LEFT_MOTOR_DIR1, LOW);
-  digitalWrite(LEFT_MOTOR_DIR2, HIGH);
-  digitalWrite(RIGHT_MOTOR_DIR1, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR2, HIGH);
-  analogWrite(LEFT_MOTOR_PWM, speed);
-  analogWrite(RIGHT_MOTOR_PWM, speed);
-}
-
-void turnLeft(int speed) {
-  digitalWrite(LEFT_MOTOR_DIR1, LOW);
-  digitalWrite(LEFT_MOTOR_DIR2, HIGH);
-  digitalWrite(RIGHT_MOTOR_DIR1, HIGH);
-  digitalWrite(RIGHT_MOTOR_DIR2, LOW);
-  analogWrite(LEFT_MOTOR_PWM, speed);
-  analogWrite(RIGHT_MOTOR_PWM, speed);
-}
-
-void turnRight(int speed) {
-  digitalWrite(LEFT_MOTOR_DIR1, HIGH);
-  digitalWrite(LEFT_MOTOR_DIR2, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR1, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR2, HIGH);
-  analogWrite(LEFT_MOTOR_PWM, speed);
-  analogWrite(RIGHT_MOTOR_PWM, speed);
-}
-
-void stopMotors() {
-  digitalWrite(LEFT_MOTOR_DIR1, LOW);
-  digitalWrite(LEFT_MOTOR_DIR2, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR1, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR2, LOW);
-  analogWrite(LEFT_MOTOR_PWM, 0);
-  analogWrite(RIGHT_MOTOR_PWM, 0);
-}
-
-void turnLeftDegrees(int degrees) {
-  int turnTime = degrees * 10;
-  turnLeft(TURN_SPEED);
-  delay(turnTime);
-  stopMotors();
-  delay(50);
-}
-
-void turnRightDegrees(int degrees) {
-  int turnTime = degrees * 10;
-  turnRight(TURN_SPEED);
-  delay(turnTime);
-  stopMotors();
-  delay(50);
-}
-
-int getDistance() {
-  digitalWrite(ULTRASONIC_TRIG, LOW);
-  delayMicroseconds(2);
-  digitalWrite(ULTRASONIC_TRIG, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(ULTRASONIC_TRIG, LOW);
-  
-  long duration = pulseIn(ULTRASONIC_ECHO, HIGH, 30000);
-  
-  if (duration == 0) {
-    return -1;
-  }
-  
-  int distance = duration * 0.034 / 2;
-  return distance;
-}
+  digitalW
