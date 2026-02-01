@@ -1,20 +1,22 @@
 #include <Servo.h>
 
-// Pin Definitions
-#define LEFT_IR_SENSOR A0
-#define RIGHT_IR_SENSOR A1
-#define COLOR_SENSOR_S0 2
-#define COLOR_SENSOR_S1 3
-#define COLOR_SENSOR_S2 4
-#define COLOR_SENSOR_S3 5
-#define COLOR_SENSOR_OUT 6
-#define ULTRASONIC_TRIG 7
-#define ULTRASONIC_ECHO 8
-#define LEFT_MOTOR_PWM 9
-#define LEFT_MOTOR_DIR1 10
-#define LEFT_MOTOR_DIR2 11
-#define RIGHT_MOTOR_PWM 12
-#define RIGHT_MOTOR_DIR1 13
+// Pin Definitions - YOUR ACTUAL WIRING
+#define LEFT_IR_SENSOR 3
+#define RIGHT_IR_SENSOR 12
+#define COLOR_SENSOR_S0 11
+#define COLOR_SENSOR_S1 9
+#define COLOR_SENSOR_S2 6
+#define COLOR_SENSOR_S3 7
+#define COLOR_SENSOR_OUT 8
+#define ULTRASONIC_TRIG 10
+#define ULTRASONIC_ECHO 2
+
+// Motors - NOT YET CONNECTED
+#define LEFT_MOTOR_PWM 11
+#define LEFT_MOTOR_DIR1 12
+#define LEFT_MOTOR_DIR2 13
+#define RIGHT_MOTOR_PWM A0
+#define RIGHT_MOTOR_DIR1 A1
 #define RIGHT_MOTOR_DIR2 A2
 #define SERVO_PIN A3
 
@@ -27,9 +29,11 @@
 #define WALL_DETECTION_MAX 100
 #define WALL_DETECTION_MIN 10
 
-// Color thresholds
+// IR sensor logic
+#define IR_ON_WHITE HIGH
+
+// Color thresholds (NEED CALIBRATION)
 #define BLACK_THRESHOLD 400
-#define WHITE_THRESHOLD 800
 #define RED_R_MIN 150
 #define RED_R_MAX 255
 #define RED_G_MIN 0
@@ -101,13 +105,13 @@ void setup() {
   gripperServo.write(90);
   
   delay(2000);
-  Serial.println("Wall Detection Module Initialized!");
+  Serial.println("Module 3: NavigateTargetandPushBall initialized!");
 }
 
 void loop() {
   Color detectedColor = readColor();
-  int leftIR = analogRead(LEFT_IR_SENSOR);
-  int rightIR = analogRead(RIGHT_IR_SENSOR);
+  int leftIR = digitalRead(LEFT_IR_SENSOR);
+  int rightIR = digitalRead(RIGHT_IR_SENSOR);
   
   Serial.print("State: ");
   Serial.println(currentState);
@@ -159,8 +163,6 @@ void loop() {
   
   delay(10);
 }
-
-// ========== WALL DETECTION ==========
 
 void scanForWall() {
   Serial.println("=== SCANNING 360° FOR WALL ===");
@@ -268,26 +270,23 @@ void followLineAndTrackDistance(int leftIR, int rightIR) {
   unsigned long currentTime = millis();
   float deltaTime = (currentTime - lastTime) / 1000.0;
   
-  bool leftOnWhite = (leftIR > WHITE_THRESHOLD);
-  bool rightOnWhite = (rightIR > WHITE_THRESHOLD);
+  bool leftOnWhite = (leftIR == IR_ON_WHITE);
+  bool rightOnWhite = (rightIR == IR_ON_WHITE);
   
   if (!leftOnWhite && !rightOnWhite) {
-    // Both on line - keep going straight!
     moveForward(BASE_SPEED);
     distanceTraveled += 10.0 * deltaTime;
   } else if (leftOnWhite && !rightOnWhite) {
-    // Turn right until back on line
     while (leftOnWhite) {
       turnRightDegrees(5);
-      leftIR = analogRead(LEFT_IR_SENSOR);
-      leftOnWhite = (leftIR > WHITE_THRESHOLD);
+      leftIR = digitalRead(LEFT_IR_SENSOR);
+      leftOnWhite = (leftIR == IR_ON_WHITE);
     }
   } else if (!leftOnWhite && rightOnWhite) {
-    // Turn left until back on line
     while (rightOnWhite) {
       turnLeftDegrees(5);
-      rightIR = analogRead(RIGHT_IR_SENSOR);
-      rightOnWhite = (rightIR > WHITE_THRESHOLD);
+      rightIR = digitalRead(RIGHT_IR_SENSOR);
+      rightOnWhite = (rightIR == IR_ON_WHITE);
     }
   } else {
     moveForward(SLOW_SPEED);
@@ -330,8 +329,6 @@ void pushBallToCenter() {
   stopMotors();
 }
 
-// ========== COLOR SENSING FUNCTIONS ==========
-
 Color readColor() {
   Color c;
   
@@ -372,28 +369,23 @@ bool isBlack(Color c) {
   return (avg < BLACK_THRESHOLD);
 }
 
-// ========== MOVEMENT FUNCTIONS ==========
-
 void followLine(int leftIR, int rightIR) {
-  bool leftOnWhite = (leftIR > WHITE_THRESHOLD);
-  bool rightOnWhite = (rightIR > WHITE_THRESHOLD);
+  bool leftOnWhite = (leftIR == IR_ON_WHITE);
+  bool rightOnWhite = (rightIR == IR_ON_WHITE);
   
   if (!leftOnWhite && !rightOnWhite) {
-    // Both on line - keep going straight!
     moveForward(BASE_SPEED);
   } else if (leftOnWhite && !rightOnWhite) {
-    // Turn right until back on line
     while (leftOnWhite) {
       turnRightDegrees(5);
-      leftIR = analogRead(LEFT_IR_SENSOR);
-      leftOnWhite = (leftIR > WHITE_THRESHOLD);
+      leftIR = digitalRead(LEFT_IR_SENSOR);
+      leftOnWhite = (leftIR == IR_ON_WHITE);
     }
   } else if (!leftOnWhite && rightOnWhite) {
-    // Turn left until back on line
     while (rightOnWhite) {
       turnLeftDegrees(5);
-      rightIR = analogRead(RIGHT_IR_SENSOR);
-      rightOnWhite = (rightIR > WHITE_THRESHOLD);
+      rightIR = digitalRead(RIGHT_IR_SENSOR);
+      rightOnWhite = (rightIR == IR_ON_WHITE);
     }
   } else {
     moveForward(SLOW_SPEED);
@@ -445,11 +437,8 @@ void stopMotors() {
   analogWrite(RIGHT_MOTOR_PWM, 0);
 }
 
-// ========== ANGLE-BASED TURNING FUNCTIONS ==========
-
 void turnLeftDegrees(int degrees) {
   int turnTime = degrees * 10;
-  
   turnLeft(TURN_SPEED);
   delay(turnTime);
   stopMotors();
@@ -458,14 +447,11 @@ void turnLeftDegrees(int degrees) {
 
 void turnRightDegrees(int degrees) {
   int turnTime = degrees * 10;
-  
   turnRight(TURN_SPEED);
   delay(turnTime);
   stopMotors();
   delay(50);
 }
-
-// ========== ULTRASONIC SENSOR ==========
 
 int getDistance() {
   digitalWrite(ULTRASONIC_TRIG, LOW);
