@@ -1,8 +1,8 @@
 #include <Servo.h>
 
 // Pin Definitions - YOUR ACTUAL WIRING
-#define LEFT_IR_SENSOR 3
-#define RIGHT_IR_SENSOR 12
+#define LEFT_IR_SENSOR A5
+#define RIGHT_IR_SENSOR A0
 #define COLOR_SENSOR_S0 11
 #define COLOR_SENSOR_S1 9
 #define COLOR_SENSOR_S2 6
@@ -11,14 +11,14 @@
 #define ULTRASONIC_TRIG 10
 #define ULTRASONIC_ECHO 2
 
-// Motors - NOT YET CONNECTED
-#define LEFT_MOTOR_PWM 11
-#define LEFT_MOTOR_DIR1 12
-#define LEFT_MOTOR_DIR2 13
-#define RIGHT_MOTOR_PWM A0
-#define RIGHT_MOTOR_DIR1 A1
-#define RIGHT_MOTOR_DIR2 A2
-#define SERVO_PIN A3
+// Motor Driver
+#define MOTOR_IN1 5
+#define MOTOR_IN2 3
+#define MOTOR_IN3 1
+#define MOTOR_IN4 0
+
+// Servo
+#define SERVO_PIN 4
 
 // Motor speeds
 #define BASE_SPEED 150
@@ -94,12 +94,10 @@ void setup() {
   pinMode(ULTRASONIC_TRIG, OUTPUT);
   pinMode(ULTRASONIC_ECHO, INPUT);
   
-  pinMode(LEFT_MOTOR_PWM, OUTPUT);
-  pinMode(LEFT_MOTOR_DIR1, OUTPUT);
-  pinMode(LEFT_MOTOR_DIR2, OUTPUT);
-  pinMode(RIGHT_MOTOR_PWM, OUTPUT);
-  pinMode(RIGHT_MOTOR_DIR1, OUTPUT);
-  pinMode(RIGHT_MOTOR_DIR2, OUTPUT);
+  pinMode(MOTOR_IN1, OUTPUT);
+  pinMode(MOTOR_IN2, OUTPUT);
+  pinMode(MOTOR_IN3, OUTPUT);
+  pinMode(MOTOR_IN4, OUTPUT);
   
   gripperServo.attach(SERVO_PIN);
   gripperServo.write(90);
@@ -393,48 +391,38 @@ void followLine(int leftIR, int rightIR) {
 }
 
 void moveForward(int speed) {
-  digitalWrite(LEFT_MOTOR_DIR1, HIGH);
-  digitalWrite(LEFT_MOTOR_DIR2, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR1, HIGH);
-  digitalWrite(RIGHT_MOTOR_DIR2, LOW);
-  analogWrite(LEFT_MOTOR_PWM, speed);
-  analogWrite(RIGHT_MOTOR_PWM, speed);
+  analogWrite(MOTOR_IN1, speed);
+  analogWrite(MOTOR_IN2, 0);
+  analogWrite(MOTOR_IN3, speed);
+  analogWrite(MOTOR_IN4, 0);
 }
 
 void moveBackward(int speed) {
-  digitalWrite(LEFT_MOTOR_DIR1, LOW);
-  digitalWrite(LEFT_MOTOR_DIR2, HIGH);
-  digitalWrite(RIGHT_MOTOR_DIR1, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR2, HIGH);
-  analogWrite(LEFT_MOTOR_PWM, speed);
-  analogWrite(RIGHT_MOTOR_PWM, speed);
+  analogWrite(MOTOR_IN1, 0);
+  analogWrite(MOTOR_IN2, speed);
+  analogWrite(MOTOR_IN3, 0);
+  analogWrite(MOTOR_IN4, speed);
 }
 
 void turnLeft(int speed) {
-  digitalWrite(LEFT_MOTOR_DIR1, LOW);
-  digitalWrite(LEFT_MOTOR_DIR2, HIGH);
-  digitalWrite(RIGHT_MOTOR_DIR1, HIGH);
-  digitalWrite(RIGHT_MOTOR_DIR2, LOW);
-  analogWrite(LEFT_MOTOR_PWM, speed);
-  analogWrite(RIGHT_MOTOR_PWM, speed);
+  analogWrite(MOTOR_IN1, 0);
+  analogWrite(MOTOR_IN2, speed);
+  analogWrite(MOTOR_IN3, speed);
+  analogWrite(MOTOR_IN4, 0);
 }
 
 void turnRight(int speed) {
-  digitalWrite(LEFT_MOTOR_DIR1, HIGH);
-  digitalWrite(LEFT_MOTOR_DIR2, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR1, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR2, HIGH);
-  analogWrite(LEFT_MOTOR_PWM, speed);
-  analogWrite(RIGHT_MOTOR_PWM, speed);
+  analogWrite(MOTOR_IN1, speed);
+  analogWrite(MOTOR_IN2, 0);
+  analogWrite(MOTOR_IN3, 0);
+  analogWrite(MOTOR_IN4, speed);
 }
 
 void stopMotors() {
-  digitalWrite(LEFT_MOTOR_DIR1, LOW);
-  digitalWrite(LEFT_MOTOR_DIR2, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR1, LOW);
-  digitalWrite(RIGHT_MOTOR_DIR2, LOW);
-  analogWrite(LEFT_MOTOR_PWM, 0);
-  analogWrite(RIGHT_MOTOR_PWM, 0);
+  analogWrite(MOTOR_IN1, 0);
+  analogWrite(MOTOR_IN2, 0);
+  analogWrite(MOTOR_IN3, 0);
+  analogWrite(MOTOR_IN4, 0);
 }
 
 void turnLeftDegrees(int degrees) {
