@@ -1,20 +1,24 @@
 #include <Servo.h>
 
-// Pin Definitions
-#define LEFT_IR_SENSOR A0
-#define RIGHT_IR_SENSOR A1
-#define COLOR_SENSOR_S0 2
-#define COLOR_SENSOR_S1 3
-#define COLOR_SENSOR_S2 4
-#define COLOR_SENSOR_S3 5
-#define COLOR_SENSOR_OUT 6
-#define ULTRASONIC_TRIG 7
-#define ULTRASONIC_ECHO 8
-#define LEFT_MOTOR_PWM 9
-#define LEFT_MOTOR_DIR1 10
-#define LEFT_MOTOR_DIR2 11
-#define RIGHT_MOTOR_PWM 12
-#define RIGHT_MOTOR_DIR1 13
+// Pin Definitions - YOUR ACTUAL WIRING
+#define LEFT_IR_SENSOR 3
+#define RIGHT_IR_SENSOR 12
+#define COLOR_SENSOR_S0 11
+#define COLOR_SENSOR_S1 9
+#define COLOR_SENSOR_S2 6
+#define COLOR_SENSOR_S3 7
+#define COLOR_SENSOR_OUT 8
+#define ULTRASONIC_TRIG 10
+#define ULTRASONIC_ECHO 2
+// Note: You mentioned ultrasonic OUT is 13, but typically ultrasonic has TRIG and ECHO
+// If you need pin 13 for ultrasonic, let me know which signal it is
+
+// Motors - NOT YET CONNECTED (placeholder pins)
+#define LEFT_MOTOR_PWM 11
+#define LEFT_MOTOR_DIR1 12
+#define LEFT_MOTOR_DIR2 13
+#define RIGHT_MOTOR_PWM A0
+#define RIGHT_MOTOR_DIR1 A1
 #define RIGHT_MOTOR_DIR2 A2
 #define SERVO_PIN A3
 
@@ -23,9 +27,11 @@
 #define TURN_SPEED 120
 #define SLOW_SPEED 100
 
-// Color thresholds (calibrate these for your sensor)
+// IR sensor logic (TEST THIS: does your sensor output HIGH on white or LOW on white?)
+#define IR_ON_WHITE HIGH  // Change to LOW if your sensor outputs LOW on white
+
+// Color thresholds (NEED CALIBRATION)
 #define BLACK_THRESHOLD 400
-#define WHITE_THRESHOLD 800
 #define RED_R_MIN 150
 #define RED_R_MAX 255
 #define RED_G_MIN 0
@@ -56,26 +62,21 @@ struct Color {
 void setup() {
   Serial.begin(9600);
   
-  // Initialize IR sensors
   pinMode(LEFT_IR_SENSOR, INPUT);
   pinMode(RIGHT_IR_SENSOR, INPUT);
   
-  // Initialize color sensor
   pinMode(COLOR_SENSOR_S0, OUTPUT);
   pinMode(COLOR_SENSOR_S1, OUTPUT);
   pinMode(COLOR_SENSOR_S2, OUTPUT);
   pinMode(COLOR_SENSOR_S3, OUTPUT);
   pinMode(COLOR_SENSOR_OUT, INPUT);
   
-  // Set frequency scaling to 20%
   digitalWrite(COLOR_SENSOR_S0, HIGH);
   digitalWrite(COLOR_SENSOR_S1, LOW);
   
-  // Initialize ultrasonic sensor
   pinMode(ULTRASONIC_TRIG, OUTPUT);
   pinMode(ULTRASONIC_ECHO, INPUT);
   
-  // Initialize motors
   pinMode(LEFT_MOTOR_PWM, OUTPUT);
   pinMode(LEFT_MOTOR_DIR1, OUTPUT);
   pinMode(LEFT_MOTOR_DIR2, OUTPUT);
@@ -83,23 +84,20 @@ void setup() {
   pinMode(RIGHT_MOTOR_DIR1, OUTPUT);
   pinMode(RIGHT_MOTOR_DIR2, OUTPUT);
   
-  // Initialize servo
   gripperServo.attach(SERVO_PIN);
-  gripperServo.write(90); // Initial position
+  gripperServo.write(90);
   
-  delay(2000); // Startup delay
-  Serial.println("Robot initialized!");
+  delay(2000);
+  Serial.println("Module 1: FollowBlackOnRed initialized!");
 }
 
 void loop() {
   Color detectedColor = readColor();
-  int leftIR = analogRead(LEFT_IR_SENSOR);
-  int rightIR = analogRead(RIGHT_IR_SENSOR);
+  int leftIR = digitalRead(LEFT_IR_SENSOR);
+  int rightIR = digitalRead(RIGHT_IR_SENSOR);
   
-  // State machine
   switch(currentState) {
     case FOLLOW_BLACK:
-      // Check if red is detected to transition
       if (isRed(detectedColor)) {
         Serial.println("Red detected! Switching to red line following.");
         currentState = FOLLOW_RED;
@@ -110,7 +108,6 @@ void loop() {
       break;
       
     case FOLLOW_RED:
-      // Check for blue to rotate servo
       if (isBlue(detectedColor) && !blueDetected) {
         Serial.println("Blue detected! Rotating servo.");
         rotateServo();
@@ -118,7 +115,6 @@ void loop() {
         delay(500);
       }
       
-      // Check for grey to stop
       if (isGrey(detectedColor)) {
         Serial.println("Grey detected! Stopping at reupload point.");
         stopMotors();
@@ -133,7 +129,6 @@ void loop() {
       stopMotors();
       Serial.println("Waiting at reupload point...");
       delay(5000);
-      // You can add code here to wait for new instructions
       break;
   }
   
@@ -143,21 +138,16 @@ void loop() {
 Color readColor() {
   Color c;
   
-  // Read RED
   digitalWrite(COLOR_SENSOR_S2, LOW);
   digitalWrite(COLOR_SENSOR_S3, LOW);
   c.red = pulseIn(COLOR_SENSOR_OUT, LOW);
-  
   delay(10);
   
-  // Read GREEN
   digitalWrite(COLOR_SENSOR_S2, HIGH);
   digitalWrite(COLOR_SENSOR_S3, HIGH);
   c.green = pulseIn(COLOR_SENSOR_OUT, LOW);
-  
   delay(10);
   
-  // Read BLUE
   digitalWrite(COLOR_SENSOR_S2, LOW);
   digitalWrite(COLOR_SENSOR_S3, HIGH);
   c.blue = pulseIn(COLOR_SENSOR_OUT, LOW);
@@ -181,29 +171,24 @@ bool isGrey(Color c) {
 }
 
 void followLine(int leftIR, int rightIR) {
-  // White surface = high value, Black line = low value
-  bool leftOnWhite = (leftIR > WHITE_THRESHOLD);
-  bool rightOnWhite = (rightIR > WHITE_THRESHOLD);
+  bool leftOnWhite = (leftIR == IR_ON_WHITE);
+  bool rightOnWhite = (rightIR == IR_ON_WHITE);
   
   if (!leftOnWhite && !rightOnWhite) {
-    // Both sensors on the line - keep going straight continuously!
     moveForward(BASE_SPEED);
   } else if (leftOnWhite && !rightOnWhite) {
-    // Left sees white - turn right until back on line
     while (leftOnWhite) {
       turnRightDegrees(5);
-      leftIR = analogRead(LEFT_IR_SENSOR);
-      leftOnWhite = (leftIR > WHITE_THRESHOLD);
+      leftIR = digitalRead(LEFT_IR_SENSOR);
+      leftOnWhite = (leftIR == IR_ON_WHITE);
     }
   } else if (!leftOnWhite && rightOnWhite) {
-    // Right sees white - turn left until back on line
     while (rightOnWhite) {
       turnLeftDegrees(5);
-      rightIR = analogRead(RIGHT_IR_SENSOR);
-      rightOnWhite = (rightIR > WHITE_THRESHOLD);
+      rightIR = digitalRead(RIGHT_IR_SENSOR);
+      rightOnWhite = (rightIR == IR_ON_WHITE);
     }
   } else {
-    // Both on white - lost line, move slowly
     moveForward(SLOW_SPEED);
   }
 }
@@ -245,32 +230,27 @@ void stopMotors() {
 }
 
 void turnLeftDegrees(int degrees) {
-  int turnTime = degrees * 10; // 10ms per degree (adjust as needed)
-  
+  int turnTime = degrees * 10;
   turnLeft(TURN_SPEED);
   delay(turnTime);
   stopMotors();
-  delay(50); // Short pause after turn
+  delay(50);
 }
 
 void turnRightDegrees(int degrees) {
-  int turnTime = degrees * 10; // 10ms per degree (adjust as needed)
-  
+  int turnTime = degrees * 10;
   turnRight(TURN_SPEED);
   delay(turnTime);
   stopMotors();
-  delay(50); // Short pause after turn
+  delay(50);
 }
 
 void rotateServo() {
   int currentPos = gripperServo.read();
-  int targetPos = currentPos - 40; // 40 degrees counterclockwise
-  
+  int targetPos = currentPos - 40;
   if (targetPos < 0) targetPos = 0;
-  
   gripperServo.write(targetPos);
-  delay(500); // Wait for servo to complete movement
-  
+  delay(500);
   Serial.print("Servo rotated to: ");
   Serial.println(targetPos);
 }
@@ -284,6 +264,5 @@ int getDistance() {
   
   long duration = pulseIn(ULTRASONIC_ECHO, HIGH);
   int distance = duration * 0.034 / 2;
-  
   return distance;
 }

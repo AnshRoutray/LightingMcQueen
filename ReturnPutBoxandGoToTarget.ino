@@ -1,20 +1,22 @@
 #include <Servo.h>
 
-// Pin Definitions
-#define LEFT_IR_SENSOR A0
-#define RIGHT_IR_SENSOR A1
-#define COLOR_SENSOR_S0 2
-#define COLOR_SENSOR_S1 3
-#define COLOR_SENSOR_S2 4
-#define COLOR_SENSOR_S3 5
-#define COLOR_SENSOR_OUT 6
-#define ULTRASONIC_TRIG 7
-#define ULTRASONIC_ECHO 8
-#define LEFT_MOTOR_PWM 9
-#define LEFT_MOTOR_DIR1 10
-#define LEFT_MOTOR_DIR2 11
-#define RIGHT_MOTOR_PWM 12
-#define RIGHT_MOTOR_DIR1 13
+// Pin Definitions - YOUR ACTUAL WIRING
+#define LEFT_IR_SENSOR 3
+#define RIGHT_IR_SENSOR 12
+#define COLOR_SENSOR_S0 11
+#define COLOR_SENSOR_S1 9
+#define COLOR_SENSOR_S2 6
+#define COLOR_SENSOR_S3 7
+#define COLOR_SENSOR_OUT 8
+#define ULTRASONIC_TRIG 10
+#define ULTRASONIC_ECHO 2
+
+// Motors - NOT YET CONNECTED
+#define LEFT_MOTOR_PWM 11
+#define LEFT_MOTOR_DIR1 12
+#define LEFT_MOTOR_DIR2 13
+#define RIGHT_MOTOR_PWM A0
+#define RIGHT_MOTOR_DIR1 A1
 #define RIGHT_MOTOR_DIR2 A2
 #define SERVO_PIN A3
 
@@ -26,9 +28,11 @@
 // Distance threshold for obstacle detection (in cm)
 #define OBSTACLE_DISTANCE 15
 
-// Color thresholds (calibrate these for your sensor)
+// IR sensor logic
+#define IR_ON_WHITE HIGH
+
+// Color thresholds (NEED CALIBRATION)
 #define BLACK_THRESHOLD 400
-#define WHITE_THRESHOLD 800
 #define RED_R_MIN 150
 #define RED_R_MAX 255
 #define RED_G_MIN 0
@@ -67,26 +71,21 @@ struct Color {
 void setup() {
   Serial.begin(9600);
   
-  // Initialize IR sensors
   pinMode(LEFT_IR_SENSOR, INPUT);
   pinMode(RIGHT_IR_SENSOR, INPUT);
   
-  // Initialize color sensor
   pinMode(COLOR_SENSOR_S0, OUTPUT);
   pinMode(COLOR_SENSOR_S1, OUTPUT);
   pinMode(COLOR_SENSOR_S2, OUTPUT);
   pinMode(COLOR_SENSOR_S3, OUTPUT);
   pinMode(COLOR_SENSOR_OUT, INPUT);
   
-  // Set frequency scaling to 20%
   digitalWrite(COLOR_SENSOR_S0, HIGH);
   digitalWrite(COLOR_SENSOR_S1, LOW);
   
-  // Initialize ultrasonic sensor
   pinMode(ULTRASONIC_TRIG, OUTPUT);
   pinMode(ULTRASONIC_ECHO, INPUT);
   
-  // Initialize motors
   pinMode(LEFT_MOTOR_PWM, OUTPUT);
   pinMode(LEFT_MOTOR_DIR1, OUTPUT);
   pinMode(LEFT_MOTOR_DIR2, OUTPUT);
@@ -94,21 +93,19 @@ void setup() {
   pinMode(RIGHT_MOTOR_DIR1, OUTPUT);
   pinMode(RIGHT_MOTOR_DIR2, OUTPUT);
   
-  // Initialize servo
   gripperServo.attach(SERVO_PIN);
-  gripperServo.write(90); // Initial position
+  gripperServo.write(90);
   
   delay(2000);
-  Serial.println("Robot initialized!");
+  Serial.println("Module 2: ReturnPutBoxandGoToTarget initialized!");
 }
 
 void loop() {
   Color detectedColor = readColor();
-  int leftIR = analogRead(LEFT_IR_SENSOR);
-  int rightIR = analogRead(RIGHT_IR_SENSOR);
+  int leftIR = digitalRead(LEFT_IR_SENSOR);
+  int rightIR = digitalRead(RIGHT_IR_SENSOR);
   int distance = getDistance();
   
-  // Debug output
   Serial.print("State: ");
   Serial.print(currentState);
   Serial.print(" | Distance: ");
@@ -194,8 +191,6 @@ void loop() {
   delay(10);
 }
 
-// ========== COLOR SENSING FUNCTIONS ==========
-
 Color readColor() {
   Color c;
   
@@ -241,31 +236,25 @@ bool isGrey(Color c) {
   return (avg > GREY_MIN && avg < GREY_MAX);
 }
 
-// ========== MOVEMENT FUNCTIONS ==========
-
 void followLine(int leftIR, int rightIR) {
-  bool leftOnWhite = (leftIR > WHITE_THRESHOLD);
-  bool rightOnWhite = (rightIR > WHITE_THRESHOLD);
+  bool leftOnWhite = (leftIR == IR_ON_WHITE);
+  bool rightOnWhite = (rightIR == IR_ON_WHITE);
   
   if (!leftOnWhite && !rightOnWhite) {
-    // Both sensors on the line - keep going straight!
     moveForward(BASE_SPEED);
   } else if (leftOnWhite && !rightOnWhite) {
-    // Left sees white - turn right until back on line
     while (leftOnWhite) {
       turnRightDegrees(5);
-      leftIR = analogRead(LEFT_IR_SENSOR);
-      leftOnWhite = (leftIR > WHITE_THRESHOLD);
+      leftIR = digitalRead(LEFT_IR_SENSOR);
+      leftOnWhite = (leftIR == IR_ON_WHITE);
     }
   } else if (!leftOnWhite && rightOnWhite) {
-    // Right sees white - turn left until back on line
     while (rightOnWhite) {
       turnLeftDegrees(5);
-      rightIR = analogRead(RIGHT_IR_SENSOR);
-      rightOnWhite = (rightIR > WHITE_THRESHOLD);
+      rightIR = digitalRead(RIGHT_IR_SENSOR);
+      rightOnWhite = (rightIR == IR_ON_WHITE);
     }
   } else {
-    // Both on white - lost line
     moveForward(SLOW_SPEED);
   }
 }
@@ -315,11 +304,8 @@ void stopMotors() {
   analogWrite(RIGHT_MOTOR_PWM, 0);
 }
 
-// ========== ANGLE-BASED TURNING FUNCTIONS ==========
-
 void turnLeftDegrees(int degrees) {
   int turnTime = degrees * 10;
-  
   turnLeft(TURN_SPEED);
   delay(turnTime);
   stopMotors();
@@ -328,14 +314,11 @@ void turnLeftDegrees(int degrees) {
 
 void turnRightDegrees(int degrees) {
   int turnTime = degrees * 10;
-  
   turnRight(TURN_SPEED);
   delay(turnTime);
   stopMotors();
   delay(50);
 }
-
-// ========== OBSTACLE AVOIDANCE ==========
 
 void avoidObstacle() {
   stopMotors();
@@ -387,8 +370,6 @@ void avoidObstacle() {
   
   Serial.println("Obstacle avoided! Resuming line following.");
 }
-
-// ========== PICKUP SEQUENCES ==========
 
 void bluePickupSequence() {
   Serial.println("=== BLUE PICKUP SEQUENCE ===");
@@ -487,8 +468,6 @@ void turnToGreen() {
   
   delay(300);
 }
-
-// ========== ULTRASONIC SENSOR ==========
 
 int getDistance() {
   digitalWrite(ULTRASONIC_TRIG, LOW);
